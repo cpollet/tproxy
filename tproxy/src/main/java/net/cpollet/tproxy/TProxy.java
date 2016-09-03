@@ -9,9 +9,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.net.UnknownHostException;
 
-/**
- * Hello world!
- */
 public class TProxy {
     private final static Logger LOG = LogManager.getLogger();
     private final Configuration configuration;
@@ -40,11 +37,14 @@ public class TProxy {
 
     private void run() throws ConfigurationException, UnknownHostException, ProxyException {
         configuration.load();
+        ThreadId threadId = new ThreadId();
         for (ProxyConfiguration proxyConfiguration : configuration.proxyConfigurations()) {
             new ProxyThread(
                     proxyConfiguration,
-                    new ThreadId()
+                    threadId
             ).start();
         }
     }
+
+
 }

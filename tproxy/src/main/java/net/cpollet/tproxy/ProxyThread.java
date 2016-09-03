@@ -1,6 +1,11 @@
 package net.cpollet.tproxy;
 
+import net.cpollet.tproxy.api.Filter;
+import net.cpollet.tproxy.api.FilterChain;
 import net.cpollet.tproxy.configuration.ProxyConfiguration;
+import net.cpollet.tproxy.filters.DefaultFilterChain;
+import net.cpollet.tproxy.filters.HttpHostFilter;
+import net.cpollet.tproxy.filters.LoggingFilter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -9,6 +14,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -65,22 +71,25 @@ public class ProxyThread extends Thread {
                 String localToRemoteName = threadId.get() + "|" + localSocket.getInetAddress() + ":" + localSocket.getLocalPort() + " -> " + remoteSocket.getInetAddress() + ":" + remoteSocket.getPort();
                 String remoteToLocalName = threadId.get() + "|" + remoteSocket.getInetAddress() + ":" + remoteSocket.getPort() + " -> " + localSocket.getInetAddress() + ":" + localSocket.getLocalPort();
 
-                StreamCopyThread copyLocalToRemote = new StreamCopyThread(localSocket, remoteSocket, this, localToRemoteName);
-                StreamCopyThread copyRemoteToLocal = new StreamCopyThread(remoteSocket, localSocket, this, remoteToLocalName);
+                Filter httpHostFilter = new HttpHostFilter();
+                Filter loggingFilter = new LoggingFilter();
 
-                peers.put(copyLocalToRemote, copyRemoteToLocal);
-                peers.put(copyRemoteToLocal, copyLocalToRemote);
+                FilterChain filterChain = new DefaultFilterChain(Arrays.asList(
+                        httpHostFilter, loggingFilter
+                ));
+
+                StreamCopyThread copyLocalToRemote = new StreamCopyThread(localSocket, remoteSocket, this, localToRemoteName, filterChain);
+                StreamCopyThread copyRemoteToLocal = new StreamCopyThread(remoteSocket, localSocket, this, remoteToLocalName, filterChain);
 
                 synchronized (lock) {
+                    peers.put(copyLocalToRemote, copyRemoteToLocal);
+                    peers.put(copyRemoteToLocal, copyLocalToRemote);
                     connections.add(copyLocalToRemote);
                     connections.add(copyRemoteToLocal);
                     LOG.info("Connections [{}] and [{}] open", copyLocalToRemote.getName(), copyRemoteToLocal.getName());
                     LOG.info("Active connections: {}", connections.size());
                     copyLocalToRemote.start();
                     copyRemoteToLocal.start();
-                }
-                if (connections.size() > 10) {
-                    throw new IllegalArgumentException();
                 }
             }
         }
