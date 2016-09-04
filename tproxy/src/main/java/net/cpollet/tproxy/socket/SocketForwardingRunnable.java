@@ -14,22 +14,24 @@ import java.net.Socket;
 /**
  * @author Christophe Pollet
  */
-public class SocketForwardingThread extends Thread {
+public class SocketForwardingRunnable implements Runnable {
     private static final Logger LOG = LogManager.getLogger();
     private static final int BUFFER_SIZE = 1024;
+
+    private final ForwardingSocket forwardingSocket;
     private final Socket source;
     private final Socket destination;
     private final FilterChain filterChain;
-    private final ForwardingSocket forwardingSocket;
+    private final Direction direction;
 
     private boolean done;
 
-    public SocketForwardingThread(ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
-        setName(getName() + "|" + label(socket1, socket2, direction));
+    public SocketForwardingRunnable(ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
         this.forwardingSocket = forwardingSocket;
         this.source = socket1;
         this.destination = socket2;
         this.filterChain = filterChain;
+        this.direction = direction;
         this.done = false;
     }
 
@@ -43,13 +45,14 @@ public class SocketForwardingThread extends Thread {
 
     @Override
     public void run() {
+        Thread.currentThread().setName(Thread.currentThread().getName() + "|" + label(source, destination, direction));
         LOG.info("Starting...");
         try {
             InputStream inputStream = source.getInputStream();
             OutputStream outputStream = destination.getOutputStream();
 
             byte[] buffer = new byte[BUFFER_SIZE];
-            while (!isInterrupted()) {
+            while (!done) {
                 int bytesRead = read(inputStream, buffer);
 
                 if (bytesRead < 0) {
@@ -79,19 +82,19 @@ public class SocketForwardingThread extends Thread {
         }
     }
 
-    private void terminate() {
+    public void terminate() {
         synchronized (forwardingSocket) {
             LOG.info("Should close connection");
-            SocketForwardingThread peer = forwardingSocket.getPeer(this);
+            SocketForwardingRunnable peer = forwardingSocket.getPeer(this);
             done = true;
 
             if (peer.done()) {
-                LOG.info("Peer [{}] already done, closing connection", peer.getName());
+                LOG.info("Peer already done, closing connection");
                 closeSocket(source);
                 closeSocket(destination);
             } else {
-                LOG.info("Asking peer [{}] to close connection", peer.getName());
-                peer.interrupt();
+                LOG.info("Asking peer to close connection");
+                peer.terminate();
             }
 
             LOG.debug("dying");

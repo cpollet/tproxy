@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Executors;
 
 public class TProxy {
     private final static Logger LOG = LogManager.getLogger();
@@ -46,6 +48,7 @@ public class TProxy {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
             ProxyEndpointsThread thread = new ProxyEndpointsThread(
+                    new ExecutorCompletionService<>(Executors.newCachedThreadPool()),
                     new ProxyEndpoints(proxyConfiguration.in(), proxyConfiguration.out())
             );
 

@@ -10,11 +10,11 @@ import org.apache.logging.log4j.Logger;
 
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorCompletionService;
 
 /**
  * @author Christophe Pollet
@@ -24,8 +24,10 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
 
     private final ProxyEndpoints proxyEndpoints;
     private final List<ForwardingSocket> forwardingSockets;
+    private final ExecutorCompletionService<Void> executorService;
 
-    public ProxyEndpointsThread(ProxyEndpoints proxyEndpoints) throws UnknownHostException {
+    public ProxyEndpointsThread(ExecutorCompletionService<Void> executorService, ProxyEndpoints proxyEndpoints) {
+        this.executorService = executorService;
         this.forwardingSockets = Collections.synchronizedList(new LinkedList<>());
         this.proxyEndpoints = proxyEndpoints;
         setName(getName() + "|" + proxyEndpoints.toString());
@@ -53,7 +55,7 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
                         new HttpHostFilter()//, new LoggingFilter()
                 ));
 
-                ForwardingSocket forwardingSocket = new ForwardingSocket(this, localSocket, remoteSocket, filterChain);
+                ForwardingSocket forwardingSocket = new ForwardingSocket(this, executorService, localSocket, remoteSocket, filterChain);
                 forwardingSockets.add(forwardingSocket);
 
                 forwardingSocket.start();
@@ -72,7 +74,7 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
     }
 
     private void cleanup() {
-        forwardingSockets.forEach(ForwardingSocket::close);
+        forwardingSockets.forEach(ForwardingSocket::terminate);
 
         LOG.info("Waiting for all connections to close...");
 
@@ -114,7 +116,7 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
      */
     @Override
     public void closeAllStreams() {
-        forwardingSockets.forEach(ForwardingSocket::close);
+        forwardingSockets.forEach(ForwardingSocket::terminate);
     }
 
     @Override
