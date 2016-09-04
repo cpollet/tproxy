@@ -9,6 +9,6 @@
         <Root level="ERROR">
             <AppenderRef ref="STDOUT" />
         </Root>
-        <Logger name="net.cpollet.tproxy" level="info"/>
+        <Logger name="net.cpollet.tproxy" level="debug"/>
     </Loggers>
 </Configuration>

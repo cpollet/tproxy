@@ -1,13 +1,14 @@
 package net.cpollet.tproxy;
 
 import net.cpollet.tproxy.configuration.Configuration;
-import net.cpollet.tproxy.configuration.ConfigurationException;
 import net.cpollet.tproxy.configuration.ProxyConfiguration;
 import net.cpollet.tproxy.configuration.StaticConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.net.UnknownHostException;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
 
 public class TProxy {
     private final static Logger LOG = LogManager.getLogger();
@@ -25,26 +26,34 @@ public class TProxy {
         }
 
         try {
-            new TProxy(
+            TProxy tproxy = new TProxy(
                     //new PropertiesConfiguration(args[0])
                     new StaticConfiguration()
-            ).run();
+            );
+
+            tproxy.run();
         }
         catch (Exception e) {
             LOG.error("An error occurred: {}", e.getMessage(), e);
         }
     }
 
-    private void run() throws ConfigurationException, UnknownHostException, ProxyException {
+    private void run() throws Exception {
         configuration.load();
         ThreadId threadId = new ThreadId();
         for (ProxyConfiguration proxyConfiguration : configuration.proxyConfigurations()) {
-            new ProxyThread(
-                    proxyConfiguration,
-                    threadId
-            ).start();
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+
+            ProxyThread thread = new ProxyThread(
+                    threadId,
+                    new ProxyEndpoints(proxyConfiguration.in(), proxyConfiguration.out())
+            );
+
+            ObjectName name = new ObjectName("net.cpollet.tproxy:type=ProxyThread-" + thread.getId());
+
+            mbs.registerMBean(thread, name);
+
+            thread.start();
         }
     }
-
-
 }

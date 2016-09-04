@@ -1,139 +1,95 @@
 package net.cpollet.tproxy;
 
-import net.cpollet.tproxy.api.Filter;
 import net.cpollet.tproxy.api.FilterChain;
-import net.cpollet.tproxy.configuration.ProxyConfiguration;
 import net.cpollet.tproxy.filters.DefaultFilterChain;
 import net.cpollet.tproxy.filters.HttpHostFilter;
-import net.cpollet.tproxy.filters.LoggingFilter;
+import net.cpollet.tproxy.jmx.ProxyThreadMXBean;
+import net.cpollet.tproxy.stream.ForwardingSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Christophe Pollet
  */
-public class ProxyThread extends Thread {
+public class ProxyThread extends Thread implements ProxyThreadMXBean {
     private static final Logger LOG = LogManager.getLogger();
-    public static final int SO_LINGER = 10;
 
-    private final ServerSocket listeningSocket;
-    private final InetAddress dstHost;
-    private final int dstPort;
-    private final List<StreamCopyThread> connections;
-    private final Map<StreamCopyThread, StreamCopyThread> peers;
+    private final ProxyEndpoints proxyEndpoints;
+    private final List<ForwardingSocket> forwardingSockets;
 
     private final Object lock = new Object();
-    private final ThreadId threadId;
 
-    public ProxyThread(ProxyConfiguration proxyConfiguration, ThreadId threadId) throws ProxyException, UnknownHostException {
-        this.connections = new LinkedList<>();
-        this.peers = new HashMap<>();
+    public ProxyThread(ThreadId threadId, ProxyEndpoints proxyEndpoints) throws UnknownHostException {
+        this.forwardingSockets = new LinkedList<>();
+        this.proxyEndpoints = proxyEndpoints;
 
-        this.dstHost = proxyConfiguration.out().host();
-        this.dstPort = proxyConfiguration.out().port();
-        this.threadId = threadId;
-
-        InetAddress host = proxyConfiguration.in().host();
-        int port = proxyConfiguration.in().port();
-
-        setName(threadId.get() + "|" + host + ":" + port + " <-> " + dstHost + ":" + dstPort);
-
-        try {
-            listeningSocket = new ServerSocket(port, 100, host);
-        }
-        catch (IOException e) {
-            throw new ProxyException("Unable to start listening " + host + " on port " + port, e);
-        }
+        setName(threadId.get() + "|" + proxyEndpoints.toString());
     }
 
     @Override
     public void run() {
         LOG.info("Starting...");
         try {
-            while (!interrupted()) {
-                Socket localSocket = accept();
+            while (!isInterrupted()) {
+                Socket localSocket;
 
-                LOG.info("New connection from {}:{}", localSocket.getInetAddress(), localSocket.getPort());
+                try {
+                    localSocket = proxyEndpoints.localSocket();
+                }
+                catch (SocketTimeoutException e) {
+                    continue;
+                }
 
-                Socket remoteSocket = openSocketToRemote();
+                Socket remoteSocket = proxyEndpoints.remoteSocket();
 
-                String localToRemoteName = threadId.get() + "|" + localSocket.getInetAddress() + ":" + localSocket.getLocalPort() + " -> " + remoteSocket.getInetAddress() + ":" + remoteSocket.getPort();
-                String remoteToLocalName = threadId.get() + "|" + remoteSocket.getInetAddress() + ":" + remoteSocket.getPort() + " -> " + localSocket.getInetAddress() + ":" + localSocket.getLocalPort();
-
-                Filter httpHostFilter = new HttpHostFilter();
-                Filter loggingFilter = new LoggingFilter();
+                LOG.info("New connection from {}", localSocket.getLocalSocketAddress());
 
                 FilterChain filterChain = new DefaultFilterChain(Arrays.asList(
-                        httpHostFilter, loggingFilter
+                        new HttpHostFilter()//, new LoggingFilter()
                 ));
 
-                StreamCopyThread copyLocalToRemote = new StreamCopyThread(localSocket, remoteSocket, this, localToRemoteName, filterChain);
-                StreamCopyThread copyRemoteToLocal = new StreamCopyThread(remoteSocket, localSocket, this, remoteToLocalName, filterChain);
+                ForwardingSocket forwardingSocket = new ForwardingSocket(nextForwardedStreamId(), this, localSocket, remoteSocket, filterChain);
+                forwardingSockets.add(forwardingSocket);
 
                 synchronized (lock) {
-                    peers.put(copyLocalToRemote, copyRemoteToLocal);
-                    peers.put(copyRemoteToLocal, copyLocalToRemote);
-                    connections.add(copyLocalToRemote);
-                    connections.add(copyRemoteToLocal);
-                    LOG.info("Connections [{}] and [{}] open", copyLocalToRemote.getName(), copyRemoteToLocal.getName());
-                    LOG.info("Active connections: {}", connections.size());
-                    copyLocalToRemote.start();
-                    copyRemoteToLocal.start();
+                    forwardingSocket.start();
+
+                    LOG.info("Active streams: {}", forwardingSockets.size());
                 }
             }
         }
         catch (Exception e) {
             LOG.error("An error occurred: " + e.getMessage(), e);
         }
+
+        if (isInterrupted()) {
+            LOG.info("Received close event");
+        }
+
         cleanup();
     }
 
-    private Socket accept() throws ProxyException {
-        try {
-            Socket socket = listeningSocket.accept();
-            socket.setSoLinger(true, SO_LINGER);
-            return socket;
-        }
-        catch (IOException e) {
-            throw new ProxyException("Unable to accept connection", e);
-        }
-    }
-
-    private Socket openSocketToRemote() throws ProxyException {
-        try {
-            Socket socket = new Socket(dstHost, dstPort);
-            socket.setSoLinger(true, SO_LINGER);
-            return socket;
-        }
-        catch (IOException e) {
-            throw new ProxyException("Unable to connect to remote host " + dstHost + ":" + dstPort, e);
-        }
+    private int nextForwardedStreamId() {
+        return forwardingSockets.size();
     }
 
     private void cleanup() {
         synchronized (lock) {
-            for (StreamCopyThread connection : connections) {
-                LOG.info("Closing connection [{}]", connection.getName());
-                connection.interrupt();
-            }
+            forwardingSockets.forEach(ForwardingSocket::close);
         }
 
         LOG.info("Waiting for all connections to close...");
 
         while (true) {
             synchronized (lock) {
-                if (connections.isEmpty()) {
+                if (forwardingSockets.isEmpty()) {
                     return;
                 }
             }
@@ -146,25 +102,42 @@ public class ProxyThread extends Thread {
         }
     }
 
-    public void closeConnection(StreamCopyThread initiatorThread) {
-        StreamCopyThread peer = getPeer(initiatorThread);
-
-        connections.remove(initiatorThread);
-        connections.remove(peer);
-
-        LOG.info("Connections [{}] and [{}] closed", initiatorThread.getName(), peer.getName());
-        LOG.info("Active connections: {}", connections.size());
-    }
-
-    public Object getLock() {
+    public Object getLockObject() {
         return lock;
     }
 
-    public StreamCopyThread getPeer(StreamCopyThread thread) {
-        if (!peers.containsKey(thread)) {
-            throw new IllegalArgumentException("Thread " + thread.getName() + " has no peer");
-        }
-
-        return peers.get(thread);
+    public void closed(ForwardingSocket forwardingSocket) {
+        forwardingSockets.remove(forwardingSocket);
+        LOG.info("Active streams: {}", forwardingSockets.size());
     }
+
+    /**
+     * MBean method
+     *
+     * @return
+     */
+    @Override
+    public String description() {
+        return proxyEndpoints.toString();
+    }
+
+    @Override
+    public int connectionsCount() {
+        return forwardingSockets.size();
+    }
+
+    /**
+     * MBean method
+     */
+    @Override
+    public void closeAllStreams() {
+        forwardingSockets.forEach(ForwardingSocket::close);
+    }
+
+    @Override
+    public void finish() {
+        interrupt();
+    }
+
+
 }

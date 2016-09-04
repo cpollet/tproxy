@@ -1,11 +1,8 @@
 package net.cpollet.tproxy;
 
 import net.cpollet.tproxy.api.Buffer;
-import net.cpollet.tproxy.api.Filter;
 import net.cpollet.tproxy.api.FilterChain;
-import net.cpollet.tproxy.filters.DefaultFilterChain;
-import net.cpollet.tproxy.filters.HttpHostFilter;
-import net.cpollet.tproxy.filters.LoggingFilter;
+import net.cpollet.tproxy.stream.ForwardingSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -13,7 +10,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.util.Arrays;
 
 /**
  * @author Christophe Pollet
@@ -21,21 +17,33 @@ import java.util.Arrays;
 public class StreamCopyThread extends Thread {
     private static final Logger LOG = LogManager.getLogger();
     private static final int BUFFER_SIZE = 1024;
-
     private final Socket source;
     private final Socket destination;
-    private final ProxyThread proxyThread;
     private final FilterChain filterChain;
+    private final ForwardingSocket forwardingSocket;
 
     private boolean done;
 
-    public StreamCopyThread(Socket source, Socket destination, ProxyThread proxyThread, String tag, FilterChain filterChain) {
-        super(tag);
-        this.source = source;
-        this.destination = destination;
-        this.proxyThread = proxyThread;
+    public enum Direction {
+        LOCAL_TO_REMOTE,
+        REMOTE_TO_LOCAL
+    }
+
+    public StreamCopyThread(String id, ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
+        setName(id + "|"+label(socket1, socket2, direction));
+        this.forwardingSocket = forwardingSocket;
+        this.source = socket1;
+        this.destination = socket2;
         this.filterChain = filterChain;
         this.done = false;
+    }
+
+    private String label(Socket socket1, Socket socket2, Direction direction) {
+        if (direction==Direction.LOCAL_TO_REMOTE) {
+            return socket1.getLocalSocketAddress() + " -> " + socket2.getRemoteSocketAddress();
+        } else {
+            return socket1.getRemoteSocketAddress() + " -> " + socket2.getLocalSocketAddress();
+        }
     }
 
     @Override
@@ -46,7 +54,7 @@ public class StreamCopyThread extends Thread {
 
             byte[] buffer = new byte[BUFFER_SIZE];
             while (!isInterrupted()) {
-                int bytesRead = inputStream.read(buffer, 0, BUFFER_SIZE);
+                int bytesRead = read(inputStream, buffer);
 
                 if (bytesRead < 0) {
                     break;
@@ -63,21 +71,34 @@ public class StreamCopyThread extends Thread {
         terminate();
     }
 
-    private void terminate() {
-        LOG.info("Should close connection");
-        StreamCopyThread peer = proxyThread.getPeer(this);
-        done = true;
+    private int read(InputStream inputStream, byte[] buffer) {
+        try {
+            return inputStream.read(buffer, 0, BUFFER_SIZE);
+        }
+        catch (Exception e) {
+            // we get here when the source was not able to read any data in READ_TIMEOUT ms. we have a timeout in order
+            // to close connection when the thread receives an interruption without having to wait EOF.
+            // Since we did not read any byte, we return 0. We don't return -1 because we did not get EOF either.
+            return 0;
+        }
+    }
 
-        synchronized (proxyThread.getLock()) {
+    private void terminate() {
+        synchronized (forwardingSocket.getLockObject()) {
+            LOG.info("Should close connection");
+            StreamCopyThread peer = forwardingSocket.getPeer(this);
+            done = true;
+
             if (peer.done()) {
                 LOG.info("Peer [{}] already done, closing connection", peer.getName());
                 closeSocket(source);
                 closeSocket(destination);
-                proxyThread.closeConnection(this);
             } else {
                 LOG.info("Asking peer [{}] to close connection", peer.getName());
                 peer.interrupt();
             }
+
+            LOG.debug("dying");
         }
     }
 
