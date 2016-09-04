@@ -1,6 +1,5 @@
 package net.cpollet.tproxy.endpoints;
 
-import net.cpollet.tproxy.ThreadId;
 import net.cpollet.tproxy.api.FilterChain;
 import net.cpollet.tproxy.filters.DefaultFilterChain;
 import net.cpollet.tproxy.filters.HttpHostFilter;
@@ -13,6 +12,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -25,13 +25,10 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
     private final ProxyEndpoints proxyEndpoints;
     private final List<ForwardingSocket> forwardingSockets;
 
-    private final Object lock = new Object();
-
-    public ProxyEndpointsThread(ThreadId threadId, ProxyEndpoints proxyEndpoints) throws UnknownHostException {
-        this.forwardingSockets = new LinkedList<>();
+    public ProxyEndpointsThread(ProxyEndpoints proxyEndpoints) throws UnknownHostException {
+        this.forwardingSockets = Collections.synchronizedList(new LinkedList<>());
         this.proxyEndpoints = proxyEndpoints;
-
-        setName(threadId.get() + "|" + proxyEndpoints.toString());
+        setName(getName() + "|" + proxyEndpoints.toString());
     }
 
     @Override
@@ -56,14 +53,11 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
                         new HttpHostFilter()//, new LoggingFilter()
                 ));
 
-                ForwardingSocket forwardingSocket = new ForwardingSocket(nextForwardingSocketId(), this, localSocket, remoteSocket, filterChain);
+                ForwardingSocket forwardingSocket = new ForwardingSocket(this, localSocket, remoteSocket, filterChain);
                 forwardingSockets.add(forwardingSocket);
 
-                synchronized (lock) {
-                    forwardingSocket.start();
-
-                    LOG.info("Active streams: {}", forwardingSockets.size());
-                }
+                forwardingSocket.start();
+                LOG.info("Active streams: {}", forwardingSockets.size());
             }
         }
         catch (Exception e) {
@@ -77,22 +71,14 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
         cleanup();
     }
 
-    private int nextForwardingSocketId() {
-        return forwardingSockets.size();
-    }
-
     private void cleanup() {
-        synchronized (lock) {
-            forwardingSockets.forEach(ForwardingSocket::close);
-        }
+        forwardingSockets.forEach(ForwardingSocket::close);
 
         LOG.info("Waiting for all connections to close...");
 
         while (true) {
-            synchronized (lock) {
-                if (forwardingSockets.isEmpty()) {
-                    return;
-                }
+            if (forwardingSockets.isEmpty()) {
+                return;
             }
             try {
                 Thread.sleep(500);
@@ -101,10 +87,6 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
                 LOG.warn("Interrupted");
             }
         }
-    }
-
-    public Object getLockObject() {
-        return lock;
     }
 
     public void closed(ForwardingSocket forwardingSocket) {
@@ -139,6 +121,4 @@ public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
     public void finish() {
         interrupt();
     }
-
-
 }

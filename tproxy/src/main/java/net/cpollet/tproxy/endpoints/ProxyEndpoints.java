@@ -9,6 +9,7 @@ import java.net.UnknownHostException;
 
 /**
  * Managers the 2 endpoints of a proxy, providing socket when a new connection is established.
+ *
  * @author Christophe Pollet
  */
 public class ProxyEndpoints {
@@ -27,6 +28,7 @@ public class ProxyEndpoints {
 
     /**
      * Returns a new socket to remote host.
+     *
      * @return a new socket
      * @throws IOException
      */
@@ -39,6 +41,7 @@ public class ProxyEndpoints {
 
     /**
      * Accepts an incoming connection on local socket and returns the corresponding socket. This method is blocking.
+     *
      * @return a new socket
      * @throws IOException
      */
@@ -63,7 +66,7 @@ public class ProxyEndpoints {
     @Override
     public String toString() {
         try {
-            return local.host() + ":" + local.port() + " <-> " + remote.host() + ":" + remote.port();
+            return local.host() + ":" + local.port() + "<->" + remote.host() + ":" + remote.port();
         }
         catch (UnknownHostException e) {
             throw new RuntimeException(e);

@@ -24,13 +24,8 @@ public class SocketForwardingThread extends Thread {
 
     private boolean done;
 
-    public enum Direction {
-        LOCAL_TO_REMOTE,
-        REMOTE_TO_LOCAL
-    }
-
-    public SocketForwardingThread(String id, ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
-        setName(id + "|"+label(socket1, socket2, direction));
+    public SocketForwardingThread(ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
+        setName(getName() + "|" + label(socket1, socket2, direction));
         this.forwardingSocket = forwardingSocket;
         this.source = socket1;
         this.destination = socket2;
@@ -39,15 +34,16 @@ public class SocketForwardingThread extends Thread {
     }
 
     private String label(Socket socket1, Socket socket2, Direction direction) {
-        if (direction==Direction.LOCAL_TO_REMOTE) {
-            return socket1.getLocalSocketAddress() + " -> " + socket2.getRemoteSocketAddress();
+        if (direction == Direction.LOCAL_TO_REMOTE) {
+            return socket1.getLocalSocketAddress() + "->" + socket2.getRemoteSocketAddress();
         } else {
-            return socket1.getRemoteSocketAddress() + " -> " + socket2.getLocalSocketAddress();
+            return socket1.getRemoteSocketAddress() + "->" + socket2.getLocalSocketAddress();
         }
     }
 
     @Override
     public void run() {
+        LOG.info("Starting...");
         try {
             InputStream inputStream = source.getInputStream();
             OutputStream outputStream = destination.getOutputStream();
@@ -84,7 +80,7 @@ public class SocketForwardingThread extends Thread {
     }
 
     private void terminate() {
-        synchronized (forwardingSocket.getLockObject()) {
+        synchronized (forwardingSocket) {
             LOG.info("Should close connection");
             SocketForwardingThread peer = forwardingSocket.getPeer(this);
             done = true;
@@ -113,5 +109,10 @@ public class SocketForwardingThread extends Thread {
         catch (IOException e) {
             LOG.warn("Unable to close socket: " + e.getMessage(), e);
         }
+    }
+
+    public enum Direction {
+        LOCAL_TO_REMOTE,
+        REMOTE_TO_LOCAL
     }
 }

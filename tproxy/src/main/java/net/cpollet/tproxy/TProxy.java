@@ -42,12 +42,10 @@ public class TProxy {
 
     private void run() throws Exception {
         configuration.load();
-        ThreadId threadId = new ThreadId();
         for (ProxyConfiguration proxyConfiguration : configuration.proxyConfigurations()) {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
             ProxyEndpointsThread thread = new ProxyEndpointsThread(
-                    threadId,
                     new ProxyEndpoints(proxyConfiguration.in(), proxyConfiguration.out())
             );
 
