@@ -1,4 +1,4 @@
-package net.cpollet.tproxy;
+package net.cpollet.tproxy.endpoints;
 
 import net.cpollet.tproxy.configuration.SocketConfiguration;
 

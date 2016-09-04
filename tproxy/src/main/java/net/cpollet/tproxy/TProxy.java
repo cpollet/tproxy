@@ -3,6 +3,8 @@ package net.cpollet.tproxy;
 import net.cpollet.tproxy.configuration.Configuration;
 import net.cpollet.tproxy.configuration.ProxyConfiguration;
 import net.cpollet.tproxy.configuration.StaticConfiguration;
+import net.cpollet.tproxy.endpoints.ProxyEndpoints;
+import net.cpollet.tproxy.endpoints.ProxyEndpointsThread;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,12 +46,12 @@ public class TProxy {
         for (ProxyConfiguration proxyConfiguration : configuration.proxyConfigurations()) {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
-            ProxyThread thread = new ProxyThread(
+            ProxyEndpointsThread thread = new ProxyEndpointsThread(
                     threadId,
                     new ProxyEndpoints(proxyConfiguration.in(), proxyConfiguration.out())
             );
 
-            ObjectName name = new ObjectName("net.cpollet.tproxy:type=ProxyThread-" + thread.getId());
+            ObjectName name = new ObjectName("net.cpollet.tproxy:type=ProxyEndpointsThread-" + thread.getId());
 
             mbs.registerMBean(thread, name);
 

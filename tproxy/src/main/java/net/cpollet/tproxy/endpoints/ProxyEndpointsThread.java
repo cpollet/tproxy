@@ -1,10 +1,11 @@
-package net.cpollet.tproxy;
+package net.cpollet.tproxy.endpoints;
 
+import net.cpollet.tproxy.ThreadId;
 import net.cpollet.tproxy.api.FilterChain;
 import net.cpollet.tproxy.filters.DefaultFilterChain;
 import net.cpollet.tproxy.filters.HttpHostFilter;
 import net.cpollet.tproxy.jmx.ProxyThreadMXBean;
-import net.cpollet.tproxy.stream.ForwardingSocket;
+import net.cpollet.tproxy.socket.ForwardingSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,7 +19,7 @@ import java.util.List;
 /**
  * @author Christophe Pollet
  */
-public class ProxyThread extends Thread implements ProxyThreadMXBean {
+public class ProxyEndpointsThread extends Thread implements ProxyThreadMXBean {
     private static final Logger LOG = LogManager.getLogger();
 
     private final ProxyEndpoints proxyEndpoints;
@@ -26,7 +27,7 @@ public class ProxyThread extends Thread implements ProxyThreadMXBean {
 
     private final Object lock = new Object();
 
-    public ProxyThread(ThreadId threadId, ProxyEndpoints proxyEndpoints) throws UnknownHostException {
+    public ProxyEndpointsThread(ThreadId threadId, ProxyEndpoints proxyEndpoints) throws UnknownHostException {
         this.forwardingSockets = new LinkedList<>();
         this.proxyEndpoints = proxyEndpoints;
 
@@ -55,7 +56,7 @@ public class ProxyThread extends Thread implements ProxyThreadMXBean {
                         new HttpHostFilter()//, new LoggingFilter()
                 ));
 
-                ForwardingSocket forwardingSocket = new ForwardingSocket(nextForwardedStreamId(), this, localSocket, remoteSocket, filterChain);
+                ForwardingSocket forwardingSocket = new ForwardingSocket(nextForwardingSocketId(), this, localSocket, remoteSocket, filterChain);
                 forwardingSockets.add(forwardingSocket);
 
                 synchronized (lock) {
@@ -76,7 +77,7 @@ public class ProxyThread extends Thread implements ProxyThreadMXBean {
         cleanup();
     }
 
-    private int nextForwardedStreamId() {
+    private int nextForwardingSocketId() {
         return forwardingSockets.size();
     }
 

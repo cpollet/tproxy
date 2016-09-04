@@ -1,8 +1,8 @@
-package net.cpollet.tproxy;
+package net.cpollet.tproxy.socket;
 
+import net.cpollet.tproxy.DefaultBuffer;
 import net.cpollet.tproxy.api.Buffer;
 import net.cpollet.tproxy.api.FilterChain;
-import net.cpollet.tproxy.stream.ForwardingSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -14,7 +14,7 @@ import java.net.Socket;
 /**
  * @author Christophe Pollet
  */
-public class StreamCopyThread extends Thread {
+public class SocketForwardingThread extends Thread {
     private static final Logger LOG = LogManager.getLogger();
     private static final int BUFFER_SIZE = 1024;
     private final Socket source;
@@ -29,7 +29,7 @@ public class StreamCopyThread extends Thread {
         REMOTE_TO_LOCAL
     }
 
-    public StreamCopyThread(String id, ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
+    public SocketForwardingThread(String id, ForwardingSocket forwardingSocket, Socket socket1, Socket socket2, FilterChain filterChain, Direction direction) {
         setName(id + "|"+label(socket1, socket2, direction));
         this.forwardingSocket = forwardingSocket;
         this.source = socket1;
@@ -86,7 +86,7 @@ public class StreamCopyThread extends Thread {
     private void terminate() {
         synchronized (forwardingSocket.getLockObject()) {
             LOG.info("Should close connection");
-            StreamCopyThread peer = forwardingSocket.getPeer(this);
+            SocketForwardingThread peer = forwardingSocket.getPeer(this);
             done = true;
 
             if (peer.done()) {
