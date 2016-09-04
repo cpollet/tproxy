@@ -25,9 +25,9 @@ public class TProxy {
     public static void main(String[] args) {
         LOG.info("Starting TProxy...");
 
-        if (args.length != 1) {
-            throw new IllegalArgumentException("Usage: java -jar tproxy.jar CONFIG_FILE");
-        }
+//        if (args.length != 1) {
+//            throw new IllegalArgumentException("Usage: java -jar tproxy.jar CONFIG_FILE");
+//        }
 
         try {
             TProxy tproxy = new TProxy(
