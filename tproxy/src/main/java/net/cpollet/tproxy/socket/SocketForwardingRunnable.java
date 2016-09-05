@@ -45,7 +45,6 @@ public class SocketForwardingRunnable implements Runnable {
 
     @Override
     public void run() {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "|" + label(source, destination, direction));
         LOG.info("Starting...");
         try {
             InputStream inputStream = source.getInputStream();
