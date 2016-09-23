@@ -5,11 +5,15 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author Christophe Pollet
  */
 public class ProxyBackendHandler extends ChannelInboundHandlerAdapter {
+    private static final Logger LOG = LogManager.getLogger();
+
     private final Channel inboundChannel;
 
     public ProxyBackendHandler(Channel inboundChannel) {
@@ -18,18 +22,28 @@ public class ProxyBackendHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
+        LOG.debug("back[{}]: 8080 <-> 80 {}", Integer.toHexString(System.identityHashCode(ctx.pipeline())), ctx.pipeline());
         ctx.read();
     }
 
     @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+        LOG.debug("channelReadComplete");
+        super.channelReadComplete(ctx);
+    }
+
+    @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) {
-        inboundChannel.writeAndFlush(msg).addListener((ChannelFutureListener) future -> {
-            if (future.isSuccess()) {
-                ctx.channel().read();
-            } else {
-                future.channel().close();
-            }
-        });
+        LOG.debug("channelRead");
+        inboundChannel
+                .writeAndFlush(msg)
+                .addListener((ChannelFutureListener) future -> {
+                    if (future.isSuccess()) {
+                        ctx.channel().read();
+                    } else {
+                        future.channel().close();
+                    }
+                });
     }
 
     @Override

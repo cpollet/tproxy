@@ -1,19 +1,19 @@
 package net.cpollet.tproxy;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Log4J2LoggerFactory;
 import net.cpollet.tproxy.configuration.Configuration;
 import net.cpollet.tproxy.configuration.json.JsonFileConfiguration;
-import net.cpollet.tproxy.netty.ForwardingHandler;
+import net.cpollet.tproxy.netty.ProxyFrontendHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import static jdk.nashorn.internal.objects.NativeFunction.bind;
 
 public class TProxy {
     private final static Logger LOG = LogManager.getLogger();
@@ -54,9 +54,16 @@ public class TProxy {
                     .group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
                     .handler(new LoggingHandler())
-                    .childHandler(new ForwardingHandler(
-                            configuration.proxiesConfiguration().get(0).toHost(),
-                            configuration.proxiesConfiguration().get(0).toPort()))
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel channel) throws Exception {
+                            channel.config().setAutoRead(false);
+                            channel.pipeline().addLast("log", new LoggingHandler());
+                            channel.pipeline().addLast("front", new ProxyFrontendHandler(
+                                    configuration.proxiesConfiguration().get(0).toHost(),
+                                    configuration.proxiesConfiguration().get(0).toPort()));
+                        }
+                    })
                     .bind(configuration.proxiesConfiguration().get(0).fromPort())
                     .sync()
                     .channel()
