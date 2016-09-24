@@ -11,9 +11,8 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.HttpClientCodec;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpServerCodec;
+import net.cpollet.tproxy.filters.http.HttpHeadersFilter;
+import net.cpollet.tproxy.filters.http.adapters.NettyHttpFilterChain;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,33 +36,16 @@ public class ProxyFrontendHandler extends ChannelInboundHandlerAdapter {
         LOG.info("Forwarding to {}:{}", remoteHost, remotePort);
         final Channel inboundChannel = ctx.channel();
 
-        ctx.pipeline().addFirst("http.filter", new ChannelInboundHandlerAdapter() {
-            @Override
-            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-                if (msg instanceof HttpRequest) {//could be HttpContent as well
-                    HttpRequest httpRequest = (HttpRequest) msg;
-                    httpRequest.headers().remove("Host");
-                    httpRequest.headers().add("Host", "example.com");
-                }
-
-                super.channelRead(ctx, msg);
-            }
-        });
-        ctx.pipeline().addFirst("http.server", new HttpServerCodec());
-        ctx.pipeline().addFirst("http.aggregator", new HttpObjectAggregator(512 * 1024));
+        NettyHttpFilterChain httpFilterChain = new NettyHttpFilterChain();
+        httpFilterChain.add(new HttpHeadersFilter());
+        httpFilterChain.installFrontEnd(ctx.pipeline());
 
         LOG.debug("front[{}]: * <-> 8080 {}", Integer.toHexString(System.identityHashCode(ctx.pipeline())), ctx.pipeline());
 
         ChannelFuture channelFuture = new Bootstrap()
                 .group(inboundChannel.eventLoop())
                 .channel(ctx.channel().getClass())
-                .handler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    protected void initChannel(SocketChannel channel) throws Exception {
-                        channel.pipeline().addLast("http.client", new HttpClientCodec());
-                        channel.pipeline().addLast("backend", new ProxyBackendHandler(inboundChannel));
-                    }
-                })
+                .handler(httpFilterChain.backendChannelInitializer(inboundChannel))
                 .option(ChannelOption.AUTO_READ, false)
                 .connect(remoteHost, remotePort);
 
@@ -77,6 +59,12 @@ public class ProxyFrontendHandler extends ChannelInboundHandlerAdapter {
         });
 
         outboundChannel = channelFuture.channel();
+    }
+
+    @Override
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        LOG.debug("channelUnregistered");
+        super.channelUnregistered(ctx);
     }
 
     @Override
