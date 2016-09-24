@@ -1,4 +1,4 @@
-$ ab -n1000 -c50 'http://127.0.0.1:8080/'
+$ ab -n500 -c50 'http://127.0.0.1:8080/'
 
 Server Software:        ECS
 Server Hostname:        127.0.0.1
@@ -8,30 +8,30 @@ Document Path:          /
 Document Length:        1270 bytes
 
 Concurrency Level:      50
-Time taken for tests:   51.958 seconds
+Time taken for tests:   2.532 seconds
 Complete requests:      500
 Failed requests:        0
 Total transferred:      808500 bytes
 HTML transferred:       635000 bytes
-Requests per second:    9.62 [#/sec] (mean)
-Time per request:       5195.825 [ms] (mean)
-Time per request:       103.917 [ms] (mean, across all concurrent requests)
-Transfer rate:          15.20 [Kbytes/sec] received
+Requests per second:    197.44 [#/sec] (mean)
+Time per request:       253.238 [ms] (mean)
+Time per request:       5.065 [ms] (mean, across all concurrent requests)
+Transfer rate:          311.78 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
 Connect:        0    0   0.3      0       2
-Processing:   299 4943 845.7   5166    5373
-Waiting:      298 4942 845.7   5166    5372
-Total:        300 4943 845.4   5166    5373
+Processing:   205  246  46.1    229     390
+Waiting:      205  245  45.4    228     389
+Total:        205  246  46.4    229     391
 
 Percentage of the requests served within a certain time (ms)
-  50%   5166
-  66%   5179
-  75%   5188
-  80%   5197
-  90%   5226
-  95%   5241
-  98%   5253
-  99%   5254
- 100%   5373 (longest request)
+  50%    229
+  66%    237
+  75%    243
+  80%    274
+  90%    346
+  95%    369
+  98%    379
+  99%    390
+ 100%    391 (longest request)

@@ -9,6 +9,7 @@
         <Root level="ERROR">
             <AppenderRef ref="STDOUT" />
         </Root>
+        <Logger name="io.netty.handler.logging" level="debug"/>
         <Logger name="net.cpollet.tproxy" level="debug"/>
     </Loggers>
 </Configuration>

@@ -3,20 +3,14 @@ package net.cpollet.tproxy.configuration;
 /**
  * @author Christophe Pollet
  */
-public class ProxyConfiguration {
-    private final SocketConfiguration in;
-    private final SocketConfiguration out;
+public interface ProxyConfiguration {
+    String fromHost();
 
-    public ProxyConfiguration(SocketConfiguration in, SocketConfiguration out) {
-        this.in = in;
-        this.out = out;
-    }
+    int fromPort();
 
-    public SocketConfiguration in() {
-        return in;
-    }
+    String toHost();
 
-    public SocketConfiguration out() {
-        return out;
-    }
+    int toPort();
+
+    void outputFiltersConfiguration();
 }

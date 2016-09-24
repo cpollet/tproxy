@@ -1,0 +1,15 @@
+{
+  "proxies": {
+    "example.com": {
+      "from": "localhost:8080",
+      "to": "example.com:80",
+      "outputFilters": {
+        "net.cpollet.tproxy.filters.http.HeadersFilter": {
+          "replacements": {
+            "Host: .*": "Host: ${target.host}:${target.port}"
+          }
+        }
+      }
+    }
+  }
+}
