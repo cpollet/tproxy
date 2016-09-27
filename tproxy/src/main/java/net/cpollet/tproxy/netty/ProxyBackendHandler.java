@@ -27,14 +27,7 @@ public class ProxyBackendHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-        LOG.debug("channelReadComplete");
-        super.channelReadComplete(ctx);
-    }
-
-    @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) {
-        LOG.debug("channelRead");
         inboundChannel
                 .writeAndFlush(msg)
                 .addListener((ChannelFutureListener) future -> {

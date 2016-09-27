@@ -1,15 +1,22 @@
 {
-  "proxies": {
-    "example.com": {
+  "proxies": [
+    {
+      "name": "example.com",
       "from": "localhost:8080",
       "to": "example.com:80",
-      "outputFilters": {
-        "net.cpollet.tproxy.filters.http.HeadersFilter": {
-          "replacements": {
-            "Host: .*": "Host: ${target.host}:${target.port}"
+      "filters": {
+        "filterChain": "net.cpollet.tproxy.filters.http.adapters.NettyHttpFilterChain",
+        "filters": [
+          {
+            "filter": "net.cpollet.tproxy.filters.http.HttpHeadersFilter",
+            "configuration": {
+              "replace": {
+                "Host": "example.com"
+              }
+            }
           }
-        }
+        ]
       }
     }
-  }
+  ]
 }

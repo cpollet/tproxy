@@ -9,8 +9,8 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
-import net.cpollet.tproxy.filters.http.HttpFilter;
-import net.cpollet.tproxy.filters.http.HttpFilterChain;
+import net.cpollet.tproxy.filters.Filter;
+import net.cpollet.tproxy.filters.NettyFilterChain;
 import net.cpollet.tproxy.filters.http.HttpRequest;
 import net.cpollet.tproxy.netty.ProxyBackendHandler;
 
@@ -22,9 +22,9 @@ import java.util.List;
 /**
  * @author Christophe Pollet
  */
-public class NettyHttpFilterChain implements HttpFilterChain {
-    private final List<HttpFilter> filters;
-    private final ThreadLocal<Iterator<HttpFilter>> filter;
+public class NettyHttpFilterChain implements NettyFilterChain<HttpRequest> {
+    private final List<Filter<HttpRequest>> filters;
+    private final ThreadLocal<Iterator<Filter<HttpRequest>>> filter;
 
     public NettyHttpFilterChain() {
         this.filters = new ArrayList<>();
@@ -45,16 +45,18 @@ public class NettyHttpFilterChain implements HttpFilterChain {
     }
 
     @Override
-    public void add(HttpFilter filter) {
+    public void add(Filter<HttpRequest> filter) {
         filters.add(filter);
     }
 
-    public void installFrontEnd(ChannelPipeline pipeline) {
+    @Override
+    public void bind(ChannelPipeline pipeline) {
         pipeline.addFirst("http.filterChain", new Adapter(this));
         pipeline.addFirst("http.server", new HttpServerCodec());
         pipeline.addFirst("http.aggregator", new HttpObjectAggregator(512 * 1024));
     }
 
+    @Override
     public ChannelInitializer backendChannelInitializer(Channel inboundChannel) {
         return new ChannelInitializer<SocketChannel>() {
             @Override

@@ -6,7 +6,7 @@ import java.util.List;
  * @author Christophe Pollet
  */
 public interface Configuration {
-    List<ProxyConfiguration> proxiesConfiguration();
-
     void load() throws Exception;
+
+    List<? extends ProxyConfiguration> proxies();
 }

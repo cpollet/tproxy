@@ -10,7 +10,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Log4J2LoggerFactory;
 import net.cpollet.tproxy.configuration.Configuration;
-import net.cpollet.tproxy.configuration.json.JsonFileConfiguration;
+import net.cpollet.tproxy.configuration.json.JsonConfiguration;
 import net.cpollet.tproxy.netty.ProxyFrontendHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,7 +32,7 @@ public class TProxy {
 
         try {
             TProxy tproxy = new TProxy(
-                    new JsonFileConfiguration(args[0])
+                    new JsonConfiguration(args[0])
             );
 
             tproxy.run();
@@ -60,11 +60,12 @@ public class TProxy {
                             channel.config().setAutoRead(false);
                             channel.pipeline().addLast("log", new LoggingHandler());
                             channel.pipeline().addLast("front", new ProxyFrontendHandler(
-                                    configuration.proxiesConfiguration().get(0).toHost(),
-                                    configuration.proxiesConfiguration().get(0).toPort()));
+                                    configuration.proxies().get(0).toHost(),
+                                    configuration.proxies().get(0).toPort(),
+                                    configuration.proxies().get(0).filterChain()));
                         }
                     })
-                    .bind(configuration.proxiesConfiguration().get(0).fromPort())
+                    .bind(configuration.proxies().get(0).fromPort())
                     .sync()
                     .channel()
                     .closeFuture()
