@@ -17,6 +17,24 @@
           }
         ]
       }
+    },
+    {
+      "name": "google.com",
+      "from": "localhost:8081",
+      "to": "google.com:80",
+      "filters": {
+        "filterChain": "net.cpollet.tproxy.filters.http.adapters.NettyHttpFilterChain",
+        "filters": [
+          {
+            "filter": "net.cpollet.tproxy.filters.http.HttpHeadersFilter",
+            "configuration": {
+              "replace": {
+                "Host": "google.com"
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }
