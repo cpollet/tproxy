@@ -68,6 +68,8 @@ public class ProxyJsonConfiguration implements ProxyConfiguration {
     }
 
     public void initialize() throws Exception {
-        filters.initialize();
+        if (filters != null) {
+            filters.initialize();
+        }
     }
 }
